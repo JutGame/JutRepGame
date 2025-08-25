@@ -32,10 +32,18 @@ workflows:
       - name: Init shared env file
         script: |
           set -euo pipefail
-          CM_ENV_FILE="${CM_ENV:-$CM_BUILD_DIR/.cm_env}"
-          mkdir -p "$CM_BUILD_DIR"
-          : > "$CM_ENV_FILE"
-          export CM_ENV="$CM_ENV_FILE"
+          # Используем стандартный путь Codemagic, чтобы файл автоподхватывался в каждом шаге
+          export CM_ENV="${CM_ENV:-/Users/builder/.codemagic}"
+          : > "$CM_ENV"
+          # Кладём в env-файл helper-функцию для безопасной записи переменных
+          cat >> "$CM_ENV" <<'SHENV'
+          # Helper to append safe exports (bash %q quoting)
+          append_env() {
+            local key="$1"
+            local val="${2-}"
+            printf "export %s=%q\n" "$key" "$val" >> "$CM_ENV"
+          }
+          SHENV
           echo "✅ CM_ENV initialized at $CM_ENV"
 
       - name: Ensure Unity Hub app exists
@@ -65,13 +73,14 @@ workflows:
       - name: Install Unity via Headless Hub (no SIGPIPE)
         script: |
           set -euo pipefail
+          source "$CM_ENV"
           HUB="/Applications/Unity Hub.app/Contents/MacOS/Unity Hub"
           echo "→ Install editor ${UNITY_VERSION} (arm64) + iOS module"
           (yes Y | "$HUB" -- --headless install --version "$UNITY_VERSION" --changeset "$UNITY_CHANGESET" -a arm64) || true
           (yes Y | "$HUB" -- --headless install-modules --version "$UNITY_VERSION" -m ios -a arm64) || true
           UNITY_BIN="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
           [ -x "$UNITY_BIN" ] || { echo "❌ Unity not found at $UNITY_BIN"; exit 1; }
-          echo "UNITY_BIN=$UNITY_BIN" >> "$CM_ENV"
+          append_env UNITY_BIN "$UNITY_BIN"
           echo "✅ Unity installed"
 
       - name: Activate Unity License (non-fatal)
@@ -178,7 +187,7 @@ workflows:
             case "$BID" in *"\$(PRODUCT_BUNDLE_IDENTIFIER)"*) BID="";; esac
           fi
           BUNDLE_ID="${BID:-com.Blem.Eridion}"
-          echo "BUNDLE_ID=$BUNDLE_ID" >> "$CM_ENV"
+          append_env BUNDLE_ID "$BUNDLE_ID"
 
           keychain initialize
 
@@ -205,8 +214,8 @@ workflows:
           if [ "$APP_ID_SUFFIX" != "$BUNDLE_ID" ] && [[ "$APP_ID_SUFFIX" != "*" ]]; then
             echo "❌ Profile bundle id mismatch: profile='$APP_ID_SUFFIX' vs app='$BUNDLE_ID'"; exit 1
           fi
-          echo "PROFILE_NAME=$PROFILE_NAME" >> "$CM_ENV"
-          echo "TEAM_ID=$TEAM_ID" >> "$CM_ENV"
+          append_env PROFILE_NAME "$PROFILE_NAME"
+          append_env TEAM_ID "$TEAM_ID"
           echo "✅ Using profile: $PROFILE_NAME (TEAM $TEAM_ID)"
 
           # p12 Distribution cert
@@ -218,6 +227,7 @@ workflows:
       - name: Force CFBundleIdentifier to match profile (app target)
         script: |
           set -euo pipefail
+          source "$CM_ENV"
           IOS_DIR="$CM_BUILD_DIR/$PROJECT_PATH/$UNITY_IOS_DIR"
           PLIST="$IOS_DIR/Info.plist"
           /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$PLIST" 2>/dev/null || \
@@ -229,6 +239,8 @@ workflows:
           set -euo pipefail
 
           perl -pe 's/\r$//' -i "$CM_ENV"
+          # Диагностика содержимого env перед source
+          nl -ba "$CM_ENV" | sed -n '1,50p' || true
 
           source "$CM_ENV"
 
@@ -266,7 +278,6 @@ workflows:
 
           [ -d "$ARCH_PATH" ] || { echo "❌ Archive not found"; tail -n 200 "$XCB_LOG" || true; exit 65; }
           echo "✅ Archive created at $ARCH_PATH"
-
 
       - name: Export IPA (automatic signing on export) — Fix IDs + file path + fallback
         script: |
@@ -396,7 +407,7 @@ workflows:
 
           IPA_PATH="$(find "$EXPORT_DIR" -maxdepth 1 -name '*.ipa' | head -n 1)"
           [ -f "$IPA_PATH" ] || { echo "❌ IPA not created"; exit 1; }
-          echo "IPA_PATH=$IPA_PATH" >> "$CM_ENV"
+          append_env IPA_PATH "$IPA_PATH"
           echo "✅ IPA created: $IPA_PATH"
 
       - name: Upload to App Store
