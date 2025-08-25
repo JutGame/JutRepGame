@@ -1,0 +1,431 @@
+workflows:
+  unity-ios-release-publish:
+    name: Unity iOS Release + Publish (unsigned archive → automatic export for app target)
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.Aimjute.Jute
+      vars:
+        UNITY_VERSION: "6000.0.47f1"
+        UNITY_CHANGESET: "2ad1ed33fd3b"
+        BUILD_SCRIPT: "BuildiOS"
+        PROJECT_PATH: "Game"
+        UNITY_IOS_DIR: "iOSBuild"
+        XCODE_PROJECT: "Unity-iPhone.xcodeproj"
+        XCODE_SCHEME: "Unity-iPhone"
+        BUNDLE_ID_OVERRIDE: "com.Aimjute.Jute"
+      groups:
+        - unity
+        - signing
+        - app_store_connect
+
+    scripts:
+      - name: Use Xcode 16.4
+        script: |
+          set -euxo pipefail
+          sudo xcode-select --switch /Applications/Xcode-16.4.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Init shared env file
+        script: |
+          set -euo pipefail
+          CM_ENV_FILE="${CM_ENV:-$CM_BUILD_DIR/.cm_env}"
+          mkdir -p "$CM_BUILD_DIR"
+          : > "$CM_ENV_FILE"
+          export CM_ENV="$CM_ENV_FILE"
+          echo "✅ CM_ENV initialized at $CM_ENV"
+
+      - name: Ensure Unity Hub app exists
+        script: |
+          set -euo pipefail
+          if [ ! -d "/Applications/Unity Hub.app" ]; then
+            echo "→ Installing Unity Hub…"
+            HUB_DMG_URL="https://public-cdn.cloud.unity3d.com/hub/prod/UnityHubSetup.dmg"
+            curl -L -o UnityHub.dmg "$HUB_DMG_URL"
+            hdiutil attach UnityHub.dmg -nobrowse -quiet
+            cp -R "/Volumes/Unity Hub/Unity Hub.app" /Applications/
+            hdiutil detach "/Volumes/Unity Hub" -quiet || true
+          fi
+          echo "✅ Unity Hub present"
+
+      - name: Preflight check required secrets
+        script: |
+          set -euo pipefail
+          missing=0
+          need_vars=(UNITY_EMAIL UNITY_PASSWORD PROVISIONING_PROFILE CERTIFICATE_P12 CERTIFICATE_PASSWORD APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_KEY_IDENTIFIER APP_STORE_CONNECT_PRIVATE_KEY)
+          for v in "${need_vars[@]}"; do
+            if [ -z "${!v:-}" ]; then echo "❌ Missing $v"; missing=1; fi
+          done
+          [ $missing -eq 0 ] || exit 1
+          echo "✅ Secrets check passed"
+
+      - name: Install Unity via Headless Hub (no SIGPIPE)
+        script: |
+          set -euo pipefail
+          HUB="/Applications/Unity Hub.app/Contents/MacOS/Unity Hub"
+          echo "→ Install editor ${UNITY_VERSION} (arm64) + iOS module"
+          (yes Y | "$HUB" -- --headless install --version "$UNITY_VERSION" --changeset "$UNITY_CHANGESET" -a arm64) || true
+          (yes Y | "$HUB" -- --headless install-modules --version "$UNITY_VERSION" -m ios -a arm64) || true
+          UNITY_BIN="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          [ -x "$UNITY_BIN" ] || { echo "❌ Unity not found at $UNITY_BIN"; exit 1; }
+          echo "UNITY_BIN=$UNITY_BIN" >> "$CM_ENV"
+          echo "✅ Unity installed"
+
+      - name: Activate Unity License (non-fatal)
+        script: |
+          set -euo pipefail
+          source "$CM_ENV"
+          echo "🔐 Activating Unity license (non-fatal)…"
+          "$UNITY_BIN" -batchmode -quit \
+            -serial "${UNITY_SERIAL:-}" \
+            -username "${UNITY_EMAIL:-}" \
+            -password "${UNITY_PASSWORD:-}" \
+            -logFile /tmp/unity_activation.log || true
+          tail -n +1 /tmp/unity_activation.log || true
+          echo "✅ License step finished"
+
+      - name: Ensure DOTween link.xml (anti-stripping)
+        script: |
+          set -euo pipefail
+          PROJECT_FULL_PATH="$CM_BUILD_DIR/$PROJECT_PATH"
+          RES_DIR="$PROJECT_FULL_PATH/Assets/Resources"
+          mkdir -p "$RES_DIR"
+          LINK_FILE="$RES_DIR/link.xml"
+          if [ ! -f "$LINK_FILE" ]; then
+            cat > "$LINK_FILE" <<'EOF'
+          <linker>
+            <assembly fullname="DOTween" preserve="all" />
+            <assembly fullname="DOTween.Modules" preserve="all" />
+          </linker>
+          EOF
+            echo "✅ Created $LINK_FILE"
+          else
+            echo "ℹ️ link.xml already exists, skipping."
+          fi
+
+      - name: Clean iOS build folder
+        script: |
+          set -euo pipefail
+          IOS_DIR="$CM_BUILD_DIR/$PROJECT_PATH/$UNITY_IOS_DIR"
+          rm -rf "$IOS_DIR"
+          mkdir -p "$IOS_DIR"
+          echo "✅ Clean iOS folder ready."
+
+      - name: Generate Xcode Project
+        script: |
+          set -euo pipefail
+          source "$CM_ENV"
+          PROJECT_FULL_PATH="$CM_BUILD_DIR/$PROJECT_PATH"
+          echo "🚧 Generating Xcode project…"
+          "$UNITY_BIN" -batchmode -quit \
+            -projectPath "$PROJECT_FULL_PATH" \
+            -executeMethod "BuildScript.$BUILD_SCRIPT" \
+            -logFile /tmp/unity_build.log
+          tail -n 200 /tmp/unity_build.log || true
+          if grep -qE "Build completed with a result of 'Succeeded'|Build succeeded" /tmp/unity_build.log; then
+            echo "✅ Unity build succeeded"
+          else
+            echo "❌ Unity build failed"; exit 1
+          fi
+
+      - name: Validate generated Xcode project
+        script: |
+          set -euo pipefail
+          IOS_DIR="$CM_BUILD_DIR/$PROJECT_PATH/$UNITY_IOS_DIR"
+          PBXPROJ="$(find "$IOS_DIR" -name 'project.pbxproj' | head -n 1)"
+          [ -f "$PBXPROJ" ] || { echo "❌ project.pbxproj not found"; exit 1; }
+          plutil -lint "$PBXPROJ" || true
+          echo "✅ pbxproj is present."
+
+      - name: Strip signing from pbxproj (targets + embed phases)
+        script: |
+          set -euo pipefail
+          IOS_DIR="$CM_BUILD_DIR/$PROJECT_PATH/$UNITY_IOS_DIR"
+          PBXPROJ="$(find "$IOS_DIR" -name 'project.pbxproj' | head -n 1)"
+          [ -f "$PBXPROJ" ] || { echo "❌ project.pbxproj not found"; exit 1; }
+
+          # 1) Переводим на Automatic и чистим явные профили
+          perl -0777 -pe 's/^[ \t]*PROVISIONING_PROFILE(?:_SPECIFIER)?(?:_APP)?[^\n]*\n//mg' -i "$PBXPROJ"
+          perl -0777 -pe 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' -i "$PBXPROJ"
+          perl -0777 -pe 's/ProvisioningStyle = Manual;/ProvisioningStyle = Automatic;/g' -i "$PBXPROJ"
+
+          # 2) Убираем entitlements из UnityFramework
+          perl -0777 -pe 's/^[ \t]*CODE_SIGN_ENTITLEMENTS = .*UnityFramework.*\n//mg' -i "$PBXPROJ"
+
+          # 3) Убираем CodeSignOnCopy у Embed Frameworks
+          perl -0777 -pe 's/ATTRIBUTES = \((?:[^)]*?)CodeSignOnCopy(?:[^)]*?)\);/ATTRIBUTES = (RemoveHeadersOnCopy, );/g' -i "$PBXPROJ"
+
+          echo "🔎 Verifying cleanup…"
+          if grep -nE 'ProvisioningStyle = Manual|PROVISIONING_PROFILE' "$PBXPROJ"; then
+            echo "❌ Still has manual signing in pbxproj"; exit 1
+          fi
+          echo "✅ pbxproj cleaned"
+
+      - name: Prepare signing assets (keychain + profile + p12)
+        script: |
+          set -euo pipefail
+          source "$CM_ENV"
+          IOS_DIR="$CM_BUILD_DIR/$PROJECT_PATH/$UNITY_IOS_DIR"
+          PLIST="$IOS_DIR/Info.plist"
+
+          # Bundle ID (для главного app)
+          BID="${BUNDLE_ID_OVERRIDE:-}"
+          if [ -z "$BID" ] && [ -f "$PLIST" ]; then
+            BID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PLIST" 2>/dev/null || true)"
+            case "$BID" in *"\$(PRODUCT_BUNDLE_IDENTIFIER)"*) BID="";; esac
+          fi
+          BUNDLE_ID="${BID:-com.Blem.Eridion}"
+          echo "BUNDLE_ID=$BUNDLE_ID" >> "$CM_ENV"
+
+          keychain initialize
+
+          decode_to_file() {
+            local VAR="$1"; local DEST="$2"; local VAL="${!VAR:-}"
+            [ -z "$VAL" ] && return 1
+            echo "$VAL" | base64 --decode > "$DEST" 2>/dev/null || \
+            echo "$VAL" | base64 -D > "$DEST" 2>/dev/null || \
+            printf "%s" "$VAL" > "$DEST"
+          }
+          validate_profile() { security cms -D -i "$1" > /dev/null 2>&1; }
+
+          # Provisioning profile → вытаскиваем TEAM_ID и проверяем bundle id
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          PROV_PATH="$HOME/Library/MobileDevice/Provisioning Profiles/Store.mobileprovision"
+          decode_to_file PROVISIONING_PROFILE "$PROV_PATH"
+          validate_profile "$PROV_PATH" || { echo "❌ Invalid PROVISIONING_PROFILE"; exit 1; }
+          TMP_PLIST="$(mktemp)"
+          security cms -D -i "$PROV_PATH" > "$TMP_PLIST"
+          PROFILE_NAME="$(/usr/libexec/PlistBuddy -c 'Print Name' "$TMP_PLIST")"
+          APP_ID_FULL="$(/usr/libexec/PlistBuddy -c 'Print Entitlements:application-identifier' "$TMP_PLIST")"
+          TEAM_ID="${APP_ID_FULL%%.*}"
+          APP_ID_SUFFIX="${APP_ID_FULL#*.}"
+          if [ "$APP_ID_SUFFIX" != "$BUNDLE_ID" ] && [[ "$APP_ID_SUFFIX" != "*" ]]; then
+            echo "❌ Profile bundle id mismatch: profile='$APP_ID_SUFFIX' vs app='$BUNDLE_ID'"; exit 1
+          fi
+          echo "PROFILE_NAME=$PROFILE_NAME" >> "$CM_ENV"
+          echo "TEAM_ID=$TEAM_ID" >> "$CM_ENV"
+          echo "✅ Using profile: $PROFILE_NAME (TEAM $TEAM_ID)"
+
+          # p12 Distribution cert
+          TMP_P12="$HOME/cert_env.p12"
+          decode_to_file CERTIFICATE_P12 "$TMP_P12"
+          keychain add-certificates --certificate "$TMP_P12" --certificate-password "${CERTIFICATE_PASSWORD:-}" || { echo "❌ Failed to import p12 (check base64/password)"; exit 1; }
+          security find-identity -v -p codesigning | grep -E "Apple (iOS )?Distribution|Apple Distribution" || { echo "❌ No Apple Distribution identity in keychain"; exit 1; }
+
+      - name: Force CFBundleIdentifier to match profile (app target)
+        script: |
+          set -euo pipefail
+          IOS_DIR="$CM_BUILD_DIR/$PROJECT_PATH/$UNITY_IOS_DIR"
+          PLIST="$IOS_DIR/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$PLIST" 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string $BUNDLE_ID" "$PLIST"
+          echo "CFBundleIdentifier (app) = $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PLIST")"
+
+      - name: Archive with xcodebuild (UNSIGNED + link UserNotifications)
+        script: |
+          set -euo pipefail
+          source "$CM_ENV"
+          IOS_DIR="$CM_BUILD_DIR/$PROJECT_PATH/$UNITY_IOS_DIR"
+          cd "$IOS_DIR"
+
+          # Detect container
+          if [ -d "Unity-iPhone.xcworkspace" ]; then
+            CONTAINER_TYPE="workspace"; CONTAINER_PATH="Unity-iPhone.xcworkspace"
+          else
+            CONTAINER_TYPE="project";   CONTAINER_PATH="${XCODE_PROJECT:-Unity-iPhone.xcodeproj}"
+          fi
+
+          ARCH_PATH="$PWD/build/ios/xcarchive/Unity-iPhone.xcarchive"
+          mkdir -p "$(dirname "$ARCH_PATH")"
+          echo "📦 Archiving WITHOUT code signing…"
+          XCB_LOG="$PWD/xcodebuild-archive.log"
+          BASE_ARGS=( -scheme "$XCODE_SCHEME" -configuration Release -destination "generic/platform=iOS" -archivePath "$ARCH_PATH" archive )
+          # ВАЖНО: НЕ переопределяем PRODUCT_BUNDLE_IDENTIFIER глобально
+          OVERRIDES=( DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO OTHER_LDFLAGS='$(inherited) -ObjC -framework UserNotifications' )
+
+          if [ "$CONTAINER_TYPE" = "workspace" ]; then
+            xcodebuild -workspace "$CONTAINER_PATH" "${BASE_ARGS[@]}" "${OVERRIDES[@]}" > "$XCB_LOG" 2>&1 || { echo "❌ archive failed"; tail -n 200 "$XCB_LOG"; exit 65; }
+          else
+            xcodebuild -project "$CONTAINER_PATH"  "${BASE_ARGS[@]}" "${OVERRIDES[@]}" > "$XCB_LOG" 2>&1 || { echo "❌ archive failed"; tail -n 200 "$XCB_LOG"; exit 65; }
+          fi
+
+          [ -d "$ARCH_PATH" ] || { echo "❌ Archive not found"; tail -n 200 "$XCB_LOG" || true; exit 65; }
+          echo "✅ Archive created at $ARCH_PATH"
+
+      - name: Export IPA (automatic signing on export) — Fix IDs + file path + fallback
+        script: |
+          set -euo pipefail
+          source "$CM_ENV"
+          IOS_DIR="$CM_BUILD_DIR/$PROJECT_PATH/$UNITY_IOS_DIR"
+          cd "$IOS_DIR"
+          ARCH_PATH="$PWD/build/ios/xcarchive/Unity-iPhone.xcarchive"
+          EXPORT_DIR="$PWD/build/ios/ipa"
+          mkdir -p "$EXPORT_DIR"
+
+          # === FIX: устраняем CFBundleIdentifier Collision внутри архива ===
+          APP_PATH="$(find "$ARCH_PATH/Products/Applications" -maxdepth 1 -type d -name '*.app' | head -n 1)"
+          if [ -d "$APP_PATH" ]; then
+            HOST_PLIST="$APP_PATH/Info.plist"
+            HOST_BID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$HOST_PLIST" 2>/dev/null || echo "")"
+            echo "Host bundle id: $HOST_BID"
+            # перебираем Info.plist у фреймворков и extensions
+            while IFS= read -r plist; do
+              [ "$plist" = "$HOST_PLIST" ] && continue
+              CUR_BID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist" 2>/dev/null || echo "")"
+              if [ -z "$CUR_BID" ] || [ "$CUR_BID" = "$HOST_BID" ]; then
+                base="$(basename "$(dirname "$plist")")"
+                suffix="${base%%.*}"
+                NEW_BID="${HOST_BID}.${suffix}"
+                /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $NEW_BID" "$plist" 2>/dev/null || \
+                /usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string $NEW_BID" "$plist"
+                echo "🔧 Fixed CFBundleIdentifier for $(dirname "$plist") -> $NEW_BID"
+              fi
+            done < <(find "$APP_PATH" \( -path "*/Frameworks/*.framework/Info.plist" -o -path "*/PlugIns/*.appex/Info.plist" -o -path "*/Frameworks/*.bundle/Info.plist" \) -type f)
+          fi
+
+          # Auto options (Plan B) — teamID включён
+          cat > export_options_auto.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>teamID</key><string>${TEAM_ID}</string>
+            <key>destination</key><string>export</string>
+            <key>compileBitcode</key><false/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          EOF
+
+          # Manual options (Plan A fallback) — teamID включён
+          cat > export_options_manual.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>teamID</key><string>${TEAM_ID}</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>${BUNDLE_ID}</key><string>${PROFILE_NAME}</string>
+            </dict>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>destination</key><string>export</string>
+            <key>compileBitcode</key><false/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          EOF
+
+          # === ВОССТАНОВЛЕНИЕ .p8 из переменной (поддержка raw/base64/\n) ===
+          KEYS_DIR="$PWD/asc_keys"
+          mkdir -p "$KEYS_DIR"
+          AC_P8="$KEYS_DIR/AuthKey_${APP_STORE_CONNECT_KEY_IDENTIFIER}.p8"
+          rm -f "$AC_P8" "$AC_P8.tmp" || true
+
+          # 1) пробуем как base64
+          if echo "$APP_STORE_CONNECT_PRIVATE_KEY" | base64 --decode > "$AC_P8.tmp" 2>/dev/null; then
+            :
+          else
+            # 2) иначе raw: превращаем \n в реальные переводы строк
+            printf "%s" "$APP_STORE_CONNECT_PRIVATE_KEY" | perl -pe 's/\\n/\n/g' > "$AC_P8.tmp"
+          fi
+
+          # нормализуем перевод строк
+          perl -pe 's/\r\n/\n/g' -i "$AC_P8.tmp"
+
+          # проверяем заголовки PEM
+          if ! grep -q -- '-----BEGIN PRIVATE KEY-----' "$AC_P8.tmp"; then
+            echo "❌ Нет BEGIN PRIVATE KEY"; exit 1
+          fi
+          if ! grep -q -- '-----END PRIVATE KEY-----' "$AC_P8.tmp"; then
+            echo "❌ Нет END PRIVATE KEY"; exit 1
+          fi
+
+          # валидируем ключ
+          if ! openssl pkey -in "$AC_P8.tmp" -noout >/dev/null 2>&1; then
+            echo "❌ OpenSSL не смог распарсить .p8 — проверь APP_STORE_CONNECT_PRIVATE_KEY"
+            exit 1
+          fi
+
+          mv "$AC_P8.tmp" "$AC_P8"
+          chmod 600 "$AC_P8"
+          echo "✅ ASC key OK: $(wc -c < "$AC_P8") bytes at $AC_P8"
+
+          # === Экспорт: сначала автоподпись (указываем ПУТЬ К ФАЙЛУ) ===
+          echo "📦 Exporting & signing IPA (automatic, file path)…"
+          if xcodebuild -exportArchive \
+              -archivePath "$ARCH_PATH" \
+              -exportOptionsPlist export_options_auto.plist \
+              -exportPath "$EXPORT_DIR" \
+              -allowProvisioningUpdates \
+              -authenticationKeyPath "$AC_P8" \
+              -authenticationKeyID "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
+              -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID" \
+              > "$PWD/xcodebuild-export-auto.log" 2>&1; then
+            echo "✅ Automatic export succeeded"
+          else
+            echo "⚠️ Automatic export failed — fallback to manual…"
+            tail -n 80 "$PWD/xcodebuild-export-auto.log" || true
+
+            if xcodebuild -exportArchive \
+                -archivePath "$ARCH_PATH" \
+                -exportOptionsPlist export_options_manual.plist \
+                -exportPath "$EXPORT_DIR" \
+                > "$PWD/xcodebuild-export-manual.log" 2>&1; then
+              echo "✅ Manual export succeeded (fallback)"
+            else
+              echo "❌ export failed (both automatic and manual)"
+              tail -n 120 "$PWD/xcodebuild-export-manual.log" || true
+              exit 65
+            fi
+          fi
+
+          IPA_PATH="$(find "$EXPORT_DIR" -maxdepth 1 -name '*.ipa' | head -n 1)"
+          [ -f "$IPA_PATH" ] || { echo "❌ IPA not created"; exit 1; }
+          echo "IPA_PATH=$IPA_PATH" >> "$CM_ENV"
+          echo "✅ IPA created: $IPA_PATH"
+
+      - name: Upload to App Store
+        script: |
+          set -euo pipefail
+          source "$CM_ENV"
+          python3 -m pip install --quiet --user codemagic-cli-tools
+          USER_BIN="$(python3 - <<'PY'
+          import site, os; print(os.path.join(site.USER_BASE, "bin"))
+          PY
+          )"
+          [ -d "$USER_BIN" ] && export PATH="$USER_BIN:$PATH"
+          [ -n "${IPA_PATH:-}" ] || { echo "❌ IPA_PATH is empty"; exit 1; }
+
+          # Передаём в CLI содержимое ключа: сначала пробуем декодировать base64, иначе используем как есть
+          if echo "$APP_STORE_CONNECT_PRIVATE_KEY" | base64 --decode > /tmp/asc.p8 2>/dev/null; then
+            ASC_PK_CONTENT="$(cat /tmp/asc.p8)"
+          else
+            ASC_PK_CONTENT="$APP_STORE_CONNECT_PRIVATE_KEY"
+          fi
+
+          echo "🚀 Uploading .ipa to App Store…"
+          app-store-connect publish \
+            --issuer-id "${APP_STORE_CONNECT_ISSUER_ID?}" \
+            --key-id "${APP_STORE_CONNECT_KEY_IDENTIFIER?}" \
+            --private-key "${ASC_PK_CONTENT?}" \
+            --path "$IPA_PATH"
+
+      - name: Cleanup keychain
+        script: |
+          set -euo pipefail
+          keychain use-login
+          keychain delete
+          echo "✅ Temp keychain removed."
+
+      - name: Return Unity License
+        script: |
+          set -euo pipefail
+          source "$CM_ENV"
+          "$UNITY_BIN" -batchmode -quit -returnlicense || true
+          echo "🔓 License returned"
+
+    artifacts:
+      - "**/*.ipa"
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
