@@ -1,0 +1,492 @@
+[
+    {
+        "question": "Which sport is known as the 'king of sports'?",
+        "options": [
+            "Basketball",
+            "Football (Soccer)",
+            "Hockey",
+            "Tennis"
+        ],
+        "answer": "Football (Soccer)"
+    },
+    {
+        "question": "How many players are there in a football (soccer) team on the field at the start of a match?",
+        "options": [
+            "9",
+            "10",
+            "11",
+            "12"
+        ],
+        "answer": "11"
+    },
+    {
+        "question": "What is the main tennis tournament held in France?",
+        "options": [
+            "Wimbledon",
+            "Roland Garros",
+            "US Open",
+            "Australian Open"
+        ],
+        "answer": "Roland Garros"
+    },
+    {
+        "question": "Which athlete is nicknamed 'Lightning Bolt'?",
+        "options": [
+            "Carl Lewis",
+            "Usain Bolt",
+            "Michael Johnson",
+            "Donovan Bailey"
+        ],
+        "answer": "Usain Bolt"
+    },
+    {
+        "question": "How many points are awarded for a three-point shot in basketball?",
+        "options": [
+            "1",
+            "2",
+            "3",
+            "4"
+        ],
+        "answer": "3"
+    },
+    {
+        "question": "Which country won the first FIFA World Cup in 1930?",
+        "options": [
+            "Argentina",
+            "Brazil",
+            "Italy",
+            "Uruguay"
+        ],
+        "answer": "Uruguay"
+    },
+    {
+        "question": "In which sport is the term 'ace' commonly used?",
+        "options": [
+            "Volleyball",
+            "Tennis",
+            "Basketball",
+            "Hockey"
+        ],
+        "answer": "Tennis"
+    },
+    {
+        "question": "How long is a standard ice hockey match (excluding overtime)?",
+        "options": [
+            "45 minutes",
+            "50 minutes",
+            "60 minutes",
+            "75 minutes"
+        ],
+        "answer": "60 minutes"
+    },
+    {
+        "question": "Which football club has won the most UEFA Champions League titles?",
+        "options": [
+            "AC Milan",
+            "Real Madrid",
+            "Bayern Munich",
+            "Barcelona"
+        ],
+        "answer": "Real Madrid"
+    },
+    {
+        "question": "Who was the youngest ever World Chess Champion?",
+        "options": [
+            "Magnus Carlsen",
+            "Garry Kasparov",
+            "Bobby Fischer",
+            "Anatoly Karpov"
+        ],
+        "answer": "Garry Kasparov"
+    },
+    {
+        "question": "Which city hosted the 2016 Summer Olympics?",
+        "options": [
+            "Beijing",
+            "London",
+            "Rio de Janeiro",
+            "Athens"
+        ],
+        "answer": "Rio de Janeiro"
+    },
+    {
+        "question": "Which sport is associated with Michael Jordan?",
+        "options": [
+            "Hockey",
+            "Football",
+            "Basketball",
+            "Baseball"
+        ],
+        "answer": "Basketball"
+    },
+    {
+        "question": "How many players are on a volleyball team on the court?",
+        "options": [
+            "5",
+            "6",
+            "7",
+            "8"
+        ],
+        "answer": "6"
+    },
+    {
+        "question": "Which sport awards the Stanley Cup?",
+        "options": [
+            "Football",
+            "Ice Hockey",
+            "Baseball",
+            "Rugby"
+        ],
+        "answer": "Ice Hockey"
+    },
+    {
+        "question": "Who was the first athlete to run 100 meters in under 10 seconds?",
+        "options": [
+            "Jim Hines",
+            "Carl Lewis",
+            "Usain Bolt",
+            "Donovan Bailey"
+        ],
+        "answer": "Jim Hines"
+    },
+    {
+        "question": "Which club has won the most English Premier League titles?",
+        "options": [
+            "Chelsea",
+            "Manchester United",
+            "Liverpool",
+            "Arsenal"
+        ],
+        "answer": "Manchester United"
+    },
+    {
+        "question": "How many games are usually needed to win a tennis set?",
+        "options": [
+            "4",
+            "5",
+            "6",
+            "7"
+        ],
+        "answer": "6"
+    },
+    {
+        "question": "Which boxer is famously known as 'The Greatest'?",
+        "options": [
+            "Mike Tyson",
+            "Floyd Mayweather",
+            "Muhammad Ali",
+            "Rocky Marciano"
+        ],
+        "answer": "Muhammad Ali"
+    },
+    {
+        "question": "In which sport is the term 'triple-double' used?",
+        "options": [
+            "Football",
+            "Ice Hockey",
+            "Basketball",
+            "Baseball"
+        ],
+        "answer": "Basketball"
+    },
+    {
+        "question": "Which country won the 2018 FIFA World Cup?",
+        "options": [
+            "Germany",
+            "France",
+            "Argentina",
+            "Croatia"
+        ],
+        "answer": "France"
+    },
+    {
+        "question": "How many rings are there on the Olympic flag?",
+        "options": [
+            "4",
+            "5",
+            "6",
+            "7"
+        ],
+        "answer": "5"
+    },
+    {
+        "question": "In which sport can you achieve a 'hole in one'?",
+        "options": [
+            "Bowling",
+            "Golf",
+            "Baseball",
+            "Cricket"
+        ],
+        "answer": "Golf"
+    },
+    {
+        "question": "Which country has won the most Olympic gold medals in gymnastics?",
+        "options": [
+            "China",
+            "USA",
+            "Russia",
+            "Romania"
+        ],
+        "answer": "USA"
+    },
+    {
+        "question": "Which country invented the sport of rugby?",
+        "options": [
+            "Australia",
+            "New Zealand",
+            "England",
+            "South Africa"
+        ],
+        "answer": "England"
+    },
+    {
+        "question": "How many minutes is a standard football (soccer) match?",
+        "options": [
+            "80",
+            "90",
+            "100",
+            "120"
+        ],
+        "answer": "90"
+    },
+    {
+        "question": "Who holds the record for the most home runs in Major League Baseball?",
+        "options": [
+            "Barry Bonds",
+            "Babe Ruth",
+            "Hank Aaron",
+            "Alex Rodriguez"
+        ],
+        "answer": "Barry Bonds"
+    },
+    {
+        "question": "Which country is famous for originating sumo wrestling?",
+        "options": [
+            "China",
+            "Japan",
+            "South Korea",
+            "Thailand"
+        ],
+        "answer": "Japan"
+    },
+    {
+        "question": "Which sport uses a pommel horse?",
+        "options": [
+            "Gymnastics",
+            "Equestrian",
+            "Wrestling",
+            "Fencing"
+        ],
+        "answer": "Gymnastics"
+    },
+    {
+        "question": "What is the maximum score in a single frame of bowling?",
+        "options": [
+            "20",
+            "30",
+            "40",
+            "50"
+        ],
+        "answer": "30"
+    },
+    {
+        "question": "Which country has won the most Rugby World Cups?",
+        "options": [
+            "New Zealand",
+            "Australia",
+            "England",
+            "South Africa"
+        ],
+        "answer": "New Zealand"
+    },
+    {
+        "question": "Which athlete is known as 'Air Jordan'?",
+        "options": [
+            "LeBron James",
+            "Michael Jordan",
+            "Kobe Bryant",
+            "Shaquille O'Neal"
+        ],
+        "answer": "Michael Jordan"
+    },
+    {
+        "question": "How many sets must a team win to win a volleyball match (standard rules)?",
+        "options": [
+            "2",
+            "3",
+            "4",
+            "5"
+        ],
+        "answer": "3"
+    },
+    {
+        "question": "Which country hosts the Tour de France cycling race?",
+        "options": [
+            "Italy",
+            "Spain",
+            "France",
+            "Belgium"
+        ],
+        "answer": "France"
+    },
+    {
+        "question": "Which sport is played at Wimbledon?",
+        "options": [
+            "Badminton",
+            "Tennis",
+            "Squash",
+            "Table Tennis"
+        ],
+        "answer": "Tennis"
+    },
+    {
+        "question": "Who is the all-time leading scorer in the NBA?",
+        "options": [
+            "Michael Jordan",
+            "Kareem Abdul-Jabbar",
+            "LeBron James",
+            "Kobe Bryant"
+        ],
+        "answer": "LeBron James"
+    },
+    {
+        "question": "Which country has hosted the most Olympic Games?",
+        "options": [
+            "USA",
+            "UK",
+            "France",
+            "Japan"
+        ],
+        "answer": "USA"
+    },
+    {
+        "question": "In baseball, how many strikes make an out?",
+        "options": [
+            "2",
+            "3",
+            "4",
+            "5"
+        ],
+        "answer": "3"
+    },
+    {
+        "question": "What is the national sport of Canada?",
+        "options": [
+            "Ice Hockey",
+            "Lacrosse",
+            "Basketball",
+            "Baseball"
+        ],
+        "answer": "Lacrosse"
+    },
+    {
+        "question": "Who won the Ballon d'Or in 2021?",
+        "options": [
+            "Lionel Messi",
+            "Cristiano Ronaldo",
+            "Robert Lewandowski",
+            "Karim Benzema"
+        ],
+        "answer": "Lionel Messi"
+    },
+    {
+        "question": "Which sport uses the terms 'love', 'deuce', and 'match point'?",
+        "options": [
+            "Badminton",
+            "Tennis",
+            "Squash",
+            "Table Tennis"
+        ],
+        "answer": "Tennis"
+    },
+    {
+        "question": "Which country has won the most Cricket World Cups?",
+        "options": [
+            "India",
+            "Australia",
+            "England",
+            "West Indies"
+        ],
+        "answer": "Australia"
+    },
+    {
+        "question": "What color jersey is worn by the leader of the Tour de France?",
+        "options": [
+            "Green",
+            "Yellow",
+            "Red",
+            "Blue"
+        ],
+        "answer": "Yellow"
+    },
+    {
+        "question": "Which female tennis player has won the most Grand Slam titles?",
+        "options": [
+            "Serena Williams",
+            "Steffi Graf",
+            "Margaret Court",
+            "Martina Navratilova"
+        ],
+        "answer": "Margaret Court"
+    },
+    {
+        "question": "Which country won the FIFA World Cup in 2014?",
+        "options": [
+            "Germany",
+            "Argentina",
+            "Spain",
+            "Brazil"
+        ],
+        "answer": "Germany"
+    },
+    {
+        "question": "In which sport is the Davis Cup contested?",
+        "options": [
+            "Cricket",
+            "Tennis",
+            "Golf",
+            "Badminton"
+        ],
+        "answer": "Tennis"
+    },
+    {
+        "question": "Which sport is played at the Super Bowl?",
+        "options": [
+            "Rugby",
+            "American Football",
+            "Baseball",
+            "Basketball"
+        ],
+        "answer": "American Football"
+    },
+    {
+        "question": "Which country is home to the All Blacks rugby team?",
+        "options": [
+            "Australia",
+            "New Zealand",
+            "South Africa",
+            "England"
+        ],
+        "answer": "New Zealand"
+    },
+    {
+        "question": "How many players are on a standard baseball team on the field?",
+        "options": [
+            "8",
+            "9",
+            "10",
+            "11"
+        ],
+        "answer": "9"
+    },
+    {
+        "question": "What is the highest possible break in snooker?",
+        "options": [
+            "147",
+            "155",
+            "170",
+            "200"
+        ],
+        "answer": "147"
+    }
+]
