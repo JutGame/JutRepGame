@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: cdcff4ceb67b61e4c9da9fff6cf59caf
+guid: c45fbaa550d1a6046960f7e1064de075
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -8948490532657983941
-    second: iPhone 14 & 15 Pro - 1038_0
+      213: 1212454301967774871
+    second: iPhone 14 & 15 Pro - 1040_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -178,7 +178,7 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: iPhone 14 & 15 Pro - 1038_0
+      name: iPhone 14 & 15 Pro - 1040_0
       rect:
         serializedVersion: 2
         x: 0
@@ -193,8 +193,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: b3e89fc854390d380800000000000000
-      internalID: -8948490532657983941
+      spriteID: 794fe2783c083d010800000000000000
+      internalID: 1212454301967774871
       vertices: []
       indices: 
       edges: []
@@ -212,8 +212,7 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable:
-      iPhone 14 & 15 Pro - 1038_0: -8948490532657983941
+    nameFileIdTable: {}
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
